@@ -15,7 +15,7 @@ Tecnologias
 - JSON
 - Git & GitHub
 
-Como usar
+Repositório
 1. Clone o repositório:
 ```bash
 git clone https://github.com/joaovictornvesniero/Game-Jah-Manager.git
