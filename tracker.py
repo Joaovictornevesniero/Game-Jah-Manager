@@ -1,92 +1,73 @@
 import psutil
-import json
 import os
 import time
 import msvcrt
 from datetime import datetime
-
-#Banco de dados
-JOGOS_DB = 'jogos.json'
-HIST_DB = 'gameplay.json'
-
+from repositorio import listar_jogos, salvar_sessao, listar_sessoes
 
 def limpar_terminal():
     os.system('cls' if os.name == 'nt' else 'clear')
 
 
 def processo_rodando(nome_processo):
-    '''
-    Verifica se um processo específico está rodando.
+    nome_processo = nome_processo.lower().strip()
 
-    Args:
-        nome_processo (str): Nome exato do processo (ex: eldenring.exe)
-
-    Returns:
-        bool: True se estiver rodando, False se não
-    '''
     for proc in psutil.process_iter(['name']):
         try:
-            if proc.info['name'] == nome_processo:
+            nome_atual = proc.info['name']
+
+            if nome_atual and nome_atual.lower().strip() == nome_processo:
                 return True
+
         except (psutil.NoSuchProcess, psutil.AccessDenied):
             pass
+
     return False
 
 
-def salvar_historico(jogo, inicio, fim, tempo):
-    '''
-    Salva uma sessão de gameplay no histórico.
-    '''
-    historico = []
 
-    if os.path.exists(HIST_DB):
-        with open(HIST_DB, encoding='utf-8') as f:
-            historico = json.load(f)
+def ver_historico():
+    limpar_terminal()
+    print('=== HISTÓRICO DE GAMEPLAY ===\n')
 
-    historico.append({
-        'jogo': jogo,
-        'inicio': inicio,
-        'fim': fim,
-        'tempo': tempo
-    })
+    sessoes = listar_sessoes()
 
-    with open(HIST_DB, 'w', encoding='utf-8') as f:
-        json.dump(historico, f, indent=4, ensure_ascii=False)
+    if not sessoes:
+        print('Histórico vazio.')
+        return
+
+    for i, s in enumerate(sessoes, 1):
+        print(f"{i}. {s[1]}")
+        print(f"   Início: {s[2]}")
+        print(f"   Fim:    {s[3]}")
+        print(f"   Tempo:  {s[4]} segundos\n")
 
 
 def monitorar():
     '''
     Monitora o tempo de jogo baseado no processo cadastrado.
     '''
-    if not os.path.exists(JOGOS_DB):
-        print('Nenhum jogo cadastrado.')
-        return
 
-    with open(JOGOS_DB, encoding='utf-8') as f:
-        jogos = json.load(f)
+    jogos = listar_jogos()
 
     if not jogos:
         print('Nenhum jogo cadastrado.')
         return
 
-    nomes = list(jogos.keys())
-
     limpar_terminal()
     print('=== ESCOLHER JOGO ===\n')
 
-    for i, nome in enumerate(nomes, 1):
-        print(f'{i} - {nome}')
+    for i, jogo in enumerate(jogos, 1):
+        print(f'{i} - {jogo[1]}')
     print('0 - Cancelar')
 
     try:
         escolha = int(input('\nEscolha: '))
         if escolha == 0:
             return
-        nome_jogo = nomes[escolha - 1]
+        jogo_id, nome_jogo, processo = jogos[escolha - 1]
     except:
         return
-
-    processo = jogos[nome_jogo]
 
     limpar_terminal()
     print(f'Monitorando: {nome_jogo}')
@@ -96,57 +77,50 @@ def monitorar():
     inicio_str = None
 
     while True:
-        #Encerrar manual
+
+        # =========================
+        # ENCERRAR MANUAL (Q)
+        # =========================
         if msvcrt.kbhit():
-            tecla = msvcrt.getch().decode('utf-8').lower()
-            if tecla == 'q' and inicio:
-                fim = datetime.now()
-                fim_str = fim.strftime("%d/%m/%Y %H:%M:%S")
-                total = str(fim - inicio).split('.')[0]
-                salvar_historico(nome_jogo, inicio_str, fim_str, total)
-                print(f'\nMonitoramento encerrado manualmente ({total})')
-                return
+            try:
+                tecla = msvcrt.getch().decode(errors='ignore').lower()
+                if tecla == 'q' and inicio:
+                    fim = datetime.now()
+                    fim_str = fim.strftime("%d/%m/%Y %H:%M:%S")
+                    duracao_segundos = int((fim - inicio).total_seconds())
+
+                    salvar_sessao(jogo_id, inicio_str, fim_str, duracao_segundos)
+
+                    print(f'\nMonitoramento encerrado manualmente ({duracao_segundos} segundos)')
+                    return
+            except:
+                pass
 
         ativo = processo_rodando(processo)
 
-        #Jogo aberto
+        # =========================
+        # JOGO ABERTO
+        # =========================
         if ativo and not inicio:
             inicio = datetime.now()
             inicio_str = inicio.strftime("%d/%m/%Y %H:%M:%S")
 
         if ativo and inicio:
             tempo = datetime.now() - inicio
-            print(f'Tempo jogando: {str(tempo).split('.')[0]}', end='\r')
+            tempo_formatado = str(tempo).split('.')[0]
+            print(f'Tempo jogando: {tempo_formatado}', end='\r', flush=True)
 
-        #Jogo fechado
+        # =========================
+        # JOGO FECHADO
+        # =========================
         if not ativo and inicio:
             fim = datetime.now()
             fim_str = fim.strftime("%d/%m/%Y %H:%M:%S")
-            total = str(fim - inicio).split('.')[0]
-            salvar_historico(nome_jogo, inicio_str, fim_str, total)
-            print(f'\nSessão salva automaticamente ({total})')
+            duracao_segundos = int((fim - inicio).total_seconds())
+
+            salvar_sessao(jogo_id, inicio_str, fim_str, duracao_segundos)
+
+            print(f'\nSessão salva automaticamente ({duracao_segundos} segundos)')
             return
 
         time.sleep(1)
-
-
-def ver_historico():
-    limpar_terminal()
-    print('=== HISTÓRICO DE GAMEPLAY ===\n')
-
-    if not os.path.exists(HIST_DB):
-        print('Nenhum histórico encontrado.')
-        return
-
-    with open(HIST_DB, encoding="utf-8") as f:
-        historico = json.load(f)
-
-    if not historico:
-        print('Histórico vazio.')
-        return
-
-    for i, h in enumerate(historico, 1):
-        print(f"{i}. {h['jogo']}")
-        print(f"   Início: {h['inicio']}")
-        print(f"   Fim:    {h['fim']}")
-        print(f"   Tempo:  {h['tempo']}\n")

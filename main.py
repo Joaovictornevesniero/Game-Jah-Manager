@@ -3,6 +3,7 @@ import os
 import sys
 import tracker
 import tracker_cfg
+from database import criar_tabelas
 
 #Funções
 def limpar_terminal():
@@ -56,5 +57,5 @@ def main():
 
 #Programa principal.
 if __name__ == '__main__':
+    criar_tabelas()
     main()
-

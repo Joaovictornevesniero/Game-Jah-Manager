@@ -1,27 +1,19 @@
-import json
 import os
 import psutil
 import time
 import difflib
-
-#Banco de dados dos jogos cadastrados
-JOGOS_DB = 'jogos.json'
+from repositorio import salvar_jogo_sql
 
 
 def limpar_terminal():
     os.system('cls' if os.name == 'nt' else 'clear')
 
+
 def cadastrar_jogo():
     """
-    Cadastro de um novo jogo.
-
-    Fluxo:
-    - Usuário informa o nome do jogo
-    - Abre o jogo manualmente
-    - O script tenta detectar qual processo surgiu
-    - Caso não consiga, permite escolha manual
-    - Salva o nome do jogo + nome do processo
+    Decide qual modo de cadastro usar.
     """
+
     limpar_terminal()
     print('=== CADASTRAR JOGO ===\n')
 
@@ -30,90 +22,137 @@ def cadastrar_jogo():
         print('Nome inválido.')
         return
 
+    resposta = input('O jogo já está aberto? (s/n): ').strip().lower()
+
+    if resposta == 's':
+        cadastrar_jogo_aberto(nome)
+    else:
+        cadastrar_jogo_fechado(nome)
+
+
+def cadastrar_jogo_aberto(nome):
+    """
+    Lista processos parecidos com o nome digitado.
+    """
+
+    ignorar = {
+        'svchost.exe',
+        'System',
+        'Registry',
+        'Idle',
+        'RuntimeBroker.exe',
+        'SearchIndexer.exe',
+        'ShellExperienceHost.exe'
+    }
+
+    processos = set()
+
+    for p in psutil.process_iter(['name']):
+        try:
+            nome_proc = p.info['name']
+            if nome_proc and nome_proc not in ignorar:
+                processos.add(nome_proc)
+        except (psutil.NoSuchProcess, psutil.AccessDenied):
+            pass
+
+    # remove .exe para comparar melhor
+    processos_sem_ext = [p.replace('.exe', '') for p in processos]
+    nome_base = nome.lower()
+
+    parecidos = difflib.get_close_matches(
+        nome_base,
+        [p.lower() for p in processos_sem_ext],
+        n=10,
+        cutoff=0.2
+    )
+
+    if not parecidos:
+        print('\nNenhum processo parecido encontrado.')
+        return
+
+    print('\n=== PROCESSOS PARECIDOS ===\n')
+
+    lista_final = []
+    for i, proc in enumerate(parecidos, 1):
+        nome_real = proc + '.exe'
+        print(f'{i} - {nome_real}')
+        lista_final.append(nome_real)
+
+    print('0 - Cancelar')
+
+    try:
+        escolha = int(input('\nEscolha: '))
+        if escolha == 0:
+            return
+        processo_escolhido = lista_final[escolha - 1]
+    except:
+        print('Escolha inválida.')
+        return
+
+    salvar_jogo_sql(nome, processo_escolhido)
+    print(f'\nJogo cadastrado: {nome} ({processo_escolhido})')
+
+
+def cadastrar_jogo_fechado(nome):
+    """
+    Compara processos antes e depois de abrir o jogo.
+    """
+
+    ignorar = {
+        'svchost.exe',
+        'System',
+        'Registry',
+        'Idle',
+        'RuntimeBroker.exe',
+        'SearchIndexer.exe',
+        'ShellExperienceHost.exe'
+    }
+
+    antes = set()
+
+    for p in psutil.process_iter(['name']):
+        try:
+            nome_proc = p.info['name']
+            if nome_proc and nome_proc not in ignorar:
+                antes.add(nome_proc)
+        except (psutil.NoSuchProcess, psutil.AccessDenied):
+            pass
+
     print('\nAbra o jogo agora.')
-    input('Pressione ENTER para continuar...')
+    input('Pressione ENTER após o jogo abrir...')
+    time.sleep(2)
 
-    antes = {
-        p.info['name']
-        for p in psutil.process_iter(['name'])
-        if p.info['name']
-    }
+    depois = set()
 
-    time.sleep(1)
-
-    depois = {
-        p.info['name']
-        for p in psutil.process_iter(['name'])
-        if p.info['name']
-    }
+    for p in psutil.process_iter(['name']):
+        try:
+            nome_proc = p.info['name']
+            if nome_proc and nome_proc not in ignorar:
+                depois.add(nome_proc)
+        except (psutil.NoSuchProcess, psutil.AccessDenied):
+            pass
 
     novos = list(depois - antes)
 
-    if len(novos) == 1:
-        processo = novos[0]
+    if not novos:
+        print('\nNenhum processo novo detectado.')
+        return
 
-    else:
-        print('\nTentando detectar processo parecido...\n')
+    print('\n=== PROCESSOS NOVOS DETECTADOS ===\n')
 
-        similares = difflib.get_close_matches(
-            nome,
-            list(depois),
-            n=5,
-            cutoff=0.3
-        )
+    for i, proc in enumerate(novos, 1):
+        print(f'{i} - {proc}')
 
-        if not similares:
-            print('Não foi possível detectar o processo.\n')
-            print('0 - Voltar ao menu')
-            print('1 - Ver todos os processos')
+    print('0 - Cancelar')
 
-            escolha = input("\nEscolha: ").strip()
+    try:
+        escolha = int(input('\nEscolha: '))
+        if escolha == 0:
+            return
+        processo_escolhido = novos[escolha - 1]
+    except:
+        print('Escolha inválida.')
+        return
 
-            if escolha == '0':
-                return
-
-            elif escolha == '1':
-                todos_processos = sorted({
-                    p.info['name']
-                    for p in psutil.process_iter(['name'])
-                    if p.info['name']
-                })
-
-                limpar_terminal()
-                print('=== PROCESSOS ATIVOS ===\n')
-
-                for i, p in enumerate(todos_processos, 1):
-                    print(f"{i} - {p}")
-
-                try:
-                    indice = int(input('\nEscolha o processo: ')) - 1
-                    processo = todos_processos[indice]
-                except:
-                    print('Escolha inválida.')
-                    return
-
-            else:
-                print('Opção inválida.')
-                return
-
-        else:
-            for i, p in enumerate(similares, 1):
-                print(f"{i} - {p}")
-
-            try:
-                processo = similares[int(input('\nEscolha: ')) - 1]
-            except:
-                print('Escolha inválida.')
-                return
-
-    jogos = {}
-    if os.path.exists(JOGOS_DB):
-        with open(JOGOS_DB, encoding='utf-8') as f:
-            jogos = json.load(f)
-
-    jogos[nome] = processo
-
-    with open(JOGOS_DB, 'w', encoding='utf-8') as f:
-        json.dump(jogos, f, indent=4, ensure_ascii=False)
-
-    print(f'\nJogo cadastrado: {nome} ({processo})')
+    salvar_jogo_sql(nome, processo_escolhido)
+    print(f'\nJogo cadastrado: {nome} ({processo_escolhido})')
