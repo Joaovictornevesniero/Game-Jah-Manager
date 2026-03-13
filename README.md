@@ -1,8 +1,7 @@
-Game Jah Manager
-Sistema em Python para monitoramento automático de tempo de gameplay através da detecção de processos ativos no sistema.
+Game Jah Manager. 
+É um sistema em Python para monitoramento automático de tempo de gameplay através da detecção de processos ativos no sistema.
 
-Funcionalidades atuais
-
+Funcionalidades atuais:
 Cadastro de jogos com detecção automática de processo
 Monitoramento manual de tempo de jogo
 Registro de sessões no banco de dados
@@ -18,16 +17,7 @@ psutil
 Git & GitHub
 
 Como executar o projeto:
+1. Baixe a última versão na aba release ou pelo link abaixo:
+https://github.com/Joaovictornevesniero/Game-Jah-Manager/releases
 
-Clone o repositório:
-git clone https://github.com/joaovictornvesniero/Game-Jah-Manager.git
-
-
-Acesse a pasta:
-cd Game-Jah-Manager
-
-Instale as dependências:
-pip install psutil
-
-Execute:
-python main.py
+2. Abra o arquivo .exe

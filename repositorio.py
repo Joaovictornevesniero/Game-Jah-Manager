@@ -1,29 +1,25 @@
+#Arquivo de conexão, serve para salvar, buscar, atualizar ou remover informações do banco de dados, não deve ter nenhum input.
 from database import obter_conexao
 
-# =========================
-# JOGOS
-# =========================
-
+#Controle da tabela jogos
 def salvar_jogo_sql(nome, nome_processo):
-    """
-    Salva um novo jogo no banco de dados.
-    """
     conexao = obter_conexao()
     cursor = conexao.cursor()
 
-    cursor.execute(
-        "INSERT INTO jogos (nome, nome_processo) VALUES (?, ?)",
-        (nome, nome_processo)
-    )
-
-    conexao.commit()
-    conexao.close()
+    try:
+        cursor.execute(
+            "INSERT INTO jogos (nome, nome_processo) VALUES (?, ?)",
+            (nome, nome_processo.lower())
+        )
+        conexao.commit()
+        print("Jogo cadastrado com sucesso.")
+    except Exception as e:
+        print("Erro ao cadastrar jogo:", e)
+    finally:
+        conexao.close()
 
 
 def listar_jogos():
-    """
-    Retorna todos os jogos cadastrados.
-    """
     conexao = obter_conexao()
     cursor = conexao.cursor()
 
@@ -35,43 +31,34 @@ def listar_jogos():
 
 
 def atualizar_jogo(id_jogo, novo_nome, novo_processo):
-    """
-    Atualiza os dados de um jogo existente.
-    """
     conexao = obter_conexao()
     cursor = conexao.cursor()
 
-    cursor.execute("""
-        UPDATE jogos
-        SET nome = ?, nome_processo = ?
-        WHERE id = ?
-    """, (novo_nome, novo_processo, id_jogo))
+    try:
+        cursor.execute("""
+            UPDATE jogos
+            SET nome = ?, nome_processo = ?
+            WHERE id = ?
+        """, (novo_nome, novo_processo.lower(), id_jogo))
 
-    conexao.commit()
-    conexao.close()
+        conexao.commit()
+        print("Jogo atualizado com sucesso.")
+    except Exception as e:
+        print("Erro ao atualizar jogo:", e)
+    finally:
+        conexao.close()
 
 
 def remover_jogo(id_jogo):
-    """
-    Remove um jogo do banco de dados.
-    """
     conexao = obter_conexao()
     cursor = conexao.cursor()
-
     cursor.execute("DELETE FROM jogos WHERE id = ?", (id_jogo,))
-
     conexao.commit()
     conexao.close()
+    print("Jogo removido com sucesso.")
 
-
-# =========================
-# SESSÕES
-# =========================
-
-def salvar_sessao(jogo_id, inicio, fim, duracao_segundos):
-    """
-    Salva uma sessão de gameplay no banco.
-    """
+#Controle da tabela jogos sessões
+def salvar_sessao(jogo_id, inicio, fim=None, duracao_segundos=None):
     conexao = obter_conexao()
     cursor = conexao.cursor()
 
@@ -85,9 +72,6 @@ def salvar_sessao(jogo_id, inicio, fim, duracao_segundos):
 
 
 def listar_sessoes():
-    """
-    Retorna todas as sessões salvas, ordenadas da mais recente para a mais antiga.
-    """
     conexao = obter_conexao()
     cursor = conexao.cursor()
 
@@ -101,3 +85,20 @@ def listar_sessoes():
     sessoes = cursor.fetchall()
     conexao.close()
     return sessoes
+
+
+def relatorio_total_por_jogo():
+    conexao = obter_conexao()
+    cursor = conexao.cursor()
+
+    cursor.execute("""
+        SELECT j.nome, SUM(s.duracao_segundos) as total_segundos
+        FROM sessoes s
+        JOIN jogos j ON s.jogo_id = j.id
+        GROUP BY j.nome
+        ORDER BY total_segundos DESC
+    """)
+
+    dados = cursor.fetchall()
+    conexao.close()
+    return dados
